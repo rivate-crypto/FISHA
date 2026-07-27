@@ -445,4 +445,4 @@ else:
                 st.line_chart(df_7.set_index("Data")["Score (%)"], color="#38bdf8")
                 st.dataframe(df_7, use_container_width=True, hide_index=True)
         else:
-            st.warning("⚠️ O servidor da API encontra-se temporariamente em bloqueio (Erro 429). Se persistir, aguarda 15 a 30 minutos.")
+            st.warning("⚠️ O servidor da API encontra-se temporariamente em bloqueio (Erro 429). Se persistir, aguarda 15 a 30 minuots.")
