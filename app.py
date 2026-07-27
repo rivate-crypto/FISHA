@@ -2,14 +2,16 @@ import streamlit as st
 import requests
 import pandas as pd
 import math
-import os
-import json
 from datetime import datetime, timedelta, timezone
 
-# =========================================================================
-# CONFIGURAÇÃO DE PÁGINA STREAMLIT
-# =========================================================================
-st.set_page_config(page_title="Mestre Tático - Limnologia", page_icon="🎣", layout="wide")
+st.set_page_config(page_title="Mestre Tático — Alentejo", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
+
+st.markdown("""
+    <style>
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
+    div[data-testid="stMetric"] { background-color: #1E1E1E; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+    </style>
+""", unsafe_allow_html=True)
 
 try:
     from zoneinfo import ZoneInfo
@@ -19,9 +21,6 @@ except Exception:
 
 def get_hora_atual(): return datetime.now(FUSO_PT)
 
-# =========================================================================
-# BASE DE DADOS COMPLETA (As 22 Albufeiras do Alentejo)
-# =========================================================================
 ESPECIES_DISPONIVEIS = ["Achigã", "Lúcio-Perca", "Lúcio", "Siluro", "Barbo", "Carpa"]
 
 BARRAGENS_ALENTEJO = [
@@ -43,27 +42,25 @@ BARRAGENS_ALENTEJO = [
     {"nome": "Santa Clara", "distrito": "Beja", "bacia": "Mira", "lat": 37.51, "lon": -8.45, "estrutura": "Água cristalina, xisto pontiagudo.", "tipo_fundo": "rocha", "prof_max": 50, "comprimento_l_km": 22.0, "ipma_id": "Beja", "eixo_orientacao": 170, "fetch_max_km": 11.0, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Pedrógão", "distrito": "Beja", "bacia": "Guadiana", "lat": 38.12, "lon": -7.53, "estrutura": "Fundos rochosos e correntes.", "tipo_fundo": "rocha", "prof_max": 30, "comprimento_l_km": 15.0, "ipma_id": "Beja", "eixo_orientacao": 130, "fetch_max_km": 5.2, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Alvito", "distrito": "Beja", "bacia": "Sado", "lat": 38.25, "lon": -7.95, "estrutura": "Xisto, ilhas submersas.", "tipo_fundo": "rocha", "prof_max": 35, "comprimento_l_km": 13.0, "ipma_id": "Beja", "eixo_orientacao": 40, "fetch_max_km": 4.8, "regime_icnf": "Regime Geral", "zpr": False},
+    {"nome": "Oriola", "distrito": "Beja", "bacia": "Sado", "lat": 38.32, "lon": -8.02, "estrutura": "Margens acessíveis, zona de praia fluvial, fundos mistos.", "tipo_fundo": "misto", "prof_max": 18, "comprimento_l_km": 5.0, "ipma_id": "Beja", "eixo_orientacao": 90, "fetch_max_km": 3.0, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Pego do Altar", "distrito": "Litoral", "bacia": "Sado", "lat": 38.42, "lon": -8.38, "estrutura": "Pinheiros e árvores submersas.", "tipo_fundo": "argila", "prof_max": 30, "comprimento_l_km": 11.0, "ipma_id": "Setubal", "eixo_orientacao": 115, "fetch_max_km": 6.0, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Vale do Gaio", "distrito": "Litoral", "bacia": "Sado", "lat": 38.35, "lon": -8.40, "estrutura": "Fundos de terra, troncos.", "tipo_fundo": "argila", "prof_max": 32, "comprimento_l_km": 12.0, "ipma_id": "Setubal", "eixo_orientacao": 90, "fetch_max_km": 5.5, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Campilhas", "distrito": "Litoral", "bacia": "Sado", "lat": 37.82, "lon": -8.63, "estrutura": "Pinhais submersos, fundos de terra.", "tipo_fundo": "argila", "prof_max": 22, "comprimento_l_km": 9.0, "ipma_id": "Setubal", "eixo_orientacao": 150, "fetch_max_km": 3.8, "regime_icnf": "Regime Geral", "zpr": False},
     {"nome": "Fonte de Serne", "distrito": "Litoral", "bacia": "Sado", "lat": 37.95, "lon": -8.53, "estrutura": "Caniçais densos, fundos argilosos.", "tipo_fundo": "argila", "prof_max": 15, "comprimento_l_km": 5.5, "ipma_id": "Setubal", "eixo_orientacao": 70, "fetch_max_km": 2.8, "regime_icnf": "Regime Geral", "zpr": False}
 ]
 
-# =========================================================================
-# MOTOR LÓGICO ORIGINAL V26.26 (SEM CORTES)
-# =========================================================================
 def calcular_termoclina_e_estratificacao(t_agua, prof_max, alvo):
     if t_agua >= 23.0 and prof_max >= 15:
-        return f"🌡️ **ESTRATIFICAÇÃO TÉRMICA**: Superfície quente ({t_agua:.1f}°C). O {alvo} concentra-se estritamente na faixa dos {max(3.0, prof_max * 0.25):.1f}m aos {max(5.0, prof_max * 0.50):.1f}m."
-    elif t_agua < 14.0: return f"❄️ **MISTURA INVERNAL**: Água fria ({t_agua:.1f}°C). Peixe em profundidade."
-    return f"🟢 **MISTURA**: Coluna de água sem barreira térmica severa ({t_agua:.1f}°C)."
+        return f"🌡️ **Estratificação Térmica**: Superfície quente ({t_agua:.1f}°C). O {alvo} concentra-se estritamente na faixa dos {max(3.0, prof_max * 0.25):.1f}m aos {max(5.0, prof_max * 0.50):.1f}m."
+    elif t_agua < 14.0: return f"❄️ **Mistura Invernal**: Água fria ({t_agua:.1f}°C). Peixe em profundidade."
+    return f"🟢 **Mistura**: Coluna de água sem barreira térmica severa ({t_agua:.1f}°C)."
 
 def calcular_escorrimento_antecedente(precip_list):
-    if not precip_list or len(precip_list) < 72: return "💧 **RUNOFF**: Dados normais.", 1.00
+    if not precip_list or len(precip_list) < 72: return "💧 **Runoff**: Dados normais.", 1.00
     chuva_72h = sum(precip_list[-72:])
-    if chuva_72h > 15.0: return f"🌊 **RUNOFF SEVERO**: {chuva_72h:.1f} mm em 72h. Mudlines ativas!", 1.15
-    elif chuva_72h > 5.0: return f"💧 **RUNOFF MODERADO**: {chuva_72h:.1f} mm em 72h.", 1.08
-    return "🟢 **RUNOFF**: Sem escorrimento torrencial recente.", 1.00
+    if chuva_72h > 15.0: return f"🌊 **Runoff Severo**: {chuva_72h:.1f} mm em 72h. Mudlines ativas!", 1.15
+    elif chuva_72h > 5.0: return f"💧 **Runoff Moderado**: {chuva_72h:.1f} mm em 72h.", 1.08
+    return "🟢 **Runoff**: Sem escorrimento torrencial recente.", 1.00
 
 def obter_astronomia_precisa(lat, lon, date_dt=None):
     if date_dt is None: date_dt = get_hora_atual()
@@ -80,47 +77,47 @@ def obter_astronomia_precisa(lat, lon, date_dt=None):
         return {"day_rating": 2, "iluminacao": "50.0%", "zenith_h": 12, "nadir_h": 0, "sunrise_h": 6, "sunset_h": 21}
 
 def obter_despacho_hidrico_ren(bacia, nome):
-    if "Alqueva" in nome or "Pedrógão" in nome: return f"⚡ **TELEMETRIA REN**: Despacho ativo (485.2 MW). Sução severa.", 1.15
-    elif bacia == "Tejo": return "⚡ **TELEMETRIA REN**: Despacho moderado no Tejo.", 1.08
-    return f"💧 **TELEMETRIA REN**: Sem despacho influente.", 1.00
+    if "Alqueva" in nome or "Pedrógão" in nome: return f"⚡ **Telemetria REN**: Despacho ativo (485.2 MW). Sução severa.", 1.15
+    elif bacia == "Tejo": return "⚡ **Telemetria REN**: Despacho moderado no Tejo.", 1.08
+    return f"💧 **Telemetria REN**: Sem despacho influente.", 1.00
 
 def calcular_ressaca_seiche(v_hist, comp, prof):
-    if not v_hist or len(v_hist) < 6: return "🌊 **SEICHE**: Estável.", 1.00
+    if not v_hist or len(v_hist) < 6: return "🌊 **Seiche**: Estável.", 1.00
     if sum(v_hist[-6:-1])/5.0 >= 22.0 and v_hist[-1] <= 10.0 and comp >= 15.0:
-        return f"🌊 **RESSACA (SEICHE) ATIVA**: Vento caiu abruptamente. Upwelling nas pontas!", 1.25
-    return "🌊 **SEICHE**: Albufeira hidrodinamicamente estável.", 1.00
+        return f"🌊 **Ressaca Ativa (Seiche)**: Vento caiu abruptamente. Upwelling nas pontas!", 1.25
+    return "🌊 **Seiche**: Albufeira hidrodinamicamente estável.", 1.00
 
 def fator_metabolico_wisconsin(alvo, t_agua):
     if alvo == "Achigã":
-        if 20.0 <= t_agua <= 27.0: return f"🔥 **WISCONSIN**: Ótimo ({t_agua:.1f}°C). Demanda calórica no MÁXIMO.", 1.30
-        elif 15.0 <= t_agua < 20.0 or 27.0 < t_agua <= 29.5: return f"⚖️ **WISCONSIN**: Moderado ({t_agua:.1f}°C).", 1.05
-        return f"❄️ **WISCONSIN**: Stresse térmico ({t_agua:.1f}°C).", 0.70
+        if 20.0 <= t_agua <= 27.0: return f"🔥 **Wisconsin**: Ótimo ({t_agua:.1f}°C). Demanda calórica máxima.", 1.30
+        elif 15.0 <= t_agua < 20.0 or 27.0 < t_agua <= 29.5: return f"⚖️ **Wisconsin**: Moderado ({t_agua:.1f}°C).", 1.05
+        return f"❄️ **Wisconsin**: Stresse térmico ({t_agua:.1f}°C).", 0.70
     elif alvo == "Lúcio-Perca":
-        if 16.0 <= t_agua <= 22.0: return f"🔥 **WISCONSIN**: Ótimo ({t_agua:.1f}°C).", 1.25
-        return f"⚖️ **WISCONSIN**: Fora do ótimo ({t_agua:.1f}°C).", 0.80
-    return f"⚖️ **WISCONSIN**: Padrão ({t_agua:.1f}°C).", 1.00
+        if 16.0 <= t_agua <= 22.0: return f"🔥 **Wisconsin**: Ótimo ({t_agua:.1f}°C).", 1.25
+        return f"⚖️ **Wisconsin**: Fora do ótimo ({t_agua:.1f}°C).", 0.80
+    return f"⚖️ **Wisconsin**: Padrão ({t_agua:.1f}°C).", 1.00
 
 def calcular_wind_fetch_e_ondas(v_dir, v_speed, eixo, fetch_max, fundo):
     dif = abs((v_dir - eixo + 180) % 360 - 180)
     efetivo = max(0.5, fetch_max * max(0.2, math.cos(math.radians(dif))))
     energia = (v_speed ** 2) * efetivo
-    if energia > 800 and fundo in ["argila", "misto", "argila_rocha"]: return f"🌊 **WIND FETCH CRÍTICO** ({efetivo:.1f} km): Turbidez severa.", 1.15
-    elif energia > 350: return f"🌊 **WIND FETCH MODERADO** ({efetivo:.1f} km): Agitação ideal.", 1.05
-    return f"🌊 **WIND FETCH FRACO** ({efetivo:.1f} km).", 1.00
+    if energia > 800 and fundo in ["argila", "misto", "argila_rocha"]: return f"🌊 **Wind Fetch Crítico** ({efetivo:.1f} km): Turbidez severa.", 1.15
+    elif energia > 350: return f"🌊 **Wind Fetch Moderado** ({efetivo:.1f} km): Agitação ideal.", 1.05
+    return f"🌊 **Wind Fetch Fraco** ({efetivo:.1f} km).", 1.00
 
 def calcular_oxigenio_dissolvido(t_agua, v_speed):
     do_real = max(1.5, (14.652 - 0.41022*t_agua + 0.007991*(t_agua**2)) + min(2.5, (v_speed/10.0)*0.8) - 1.2)
-    if do_real < 4.5 and t_agua >= 26.0: return f"🚨 **ALERTA HIPÓXIA** ({do_real:.1f} mg/L): Stresse respiratório.", 0.75
-    return f"🟢 **OXIGENAÇÃO** Otimizada ({do_real:.1f} mg/L).", 1.05
+    if do_real < 4.5 and t_agua >= 26.0: return f"🚨 **Alerta Hipóxia** ({do_real:.1f} mg/L): Stresse respiratório.", 0.75
+    return f"🟢 **Oxigenação Otimizada** ({do_real:.1f} mg/L).", 1.05
 
 def obter_alertas_icnf(alvo, b):
-    alertas = [f"📋 Regime: {b.get('regime_icnf')}"]
-    if alvo in ["Lúcio-Perca", "Lúcio", "Siluro"]: alertas.append("🔴💀 INVASORA: Abate Obrigatório (DL 92/2019).")
+    alertas = [f"Regime: {b.get('regime_icnf')}"]
+    if alvo in ["Lúcio-Perca", "Lúcio", "Siluro"]: alertas.append("Invasora: Abate Obrigatório (DL 92/2019).")
     elif alvo == "Achigã":
         mes, dia = get_hora_atual().month, get_hora_atual().day
-        if (mes == 3 and dia >= 16) or (mes == 4) or (mes == 5 and dia <= 14): alertas.append("🚨 Época de DEFESO! Retenção proibida.")
-        else: alertas.append("📏 MEDIDA LEGAL: Mínimo 20cm.")
-    if b.get("zpr"): alertas.append("🎫 ZPR: Exige licença especial.")
+        if (mes == 3 and dia >= 16) or (mes == 4) or (mes == 5 and dia <= 14): alertas.append("Época de DEFESO! Retenção proibida.")
+        else: alertas.append("Medida Legal: Mínimo 20cm.")
+    if b.get("zpr"): alertas.append("ZPR: Exige licença especial.")
     return alertas
 
 def calcular_score_ahp_v26(alvo, t_agua, v_speed, delta_p, fundo, r_sol, mod_fet, mod_ox, mod_ren, mod_seiche, mod_metab, mod_run):
@@ -137,148 +134,239 @@ def obter_zona_de_caca(graus_vento, velocidade):
     dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
     v_origem = dirs[int((graus_vento + 11.25) / 22.5) % 16]
     m_alvo = dirs[int(((graus_vento + 180) % 360 + 11.25) / 22.5) % 16]
-    return f"Margem {m_alvo} (vento de {v_origem}). O peixe-pasto está empurrado contra a terra!"
+    return f"Margem {m_alvo} (vento de {v_origem}). Peixe-pasto empurrado contra a terra."
 
 def definir_tatica_apeado(alvo, fundo, v_speed):
     is_lama = v_speed > 25 and fundo == "argila"
-    cor = "🔴 ÁGUA TURVA: Preto/Junebug (Rattling/Chatterbaits)." if is_lama else "☀️ ÁGUA CLARA: Watermelon Seed/Translúcidos."
-    if fundo == "rocha": return f"Drop-Shot ou Texas Finesse a ler o fundo.\nEquipamento: Cana M/Fast, Fluoro 12lb.\nIscos: {cor}"
-    elif v_speed >= 15: return f"Power Fishing agressivo. Paralelo à margem.\nEquipamento: Cana MH, Braid 30lb.\nIscos: {cor}"
+    cor = "Água Turva: Preto/Junebug (Chatterbaits)." if is_lama else "Água Clara: Watermelon Seed / Translúcidos."
+    if fundo == "rocha": return f"Drop-Shot ou Texas Finesse.\nEquipamento: Cana M/Fast, Fluoro 12lb.\nIscos: {cor}"
+    elif v_speed >= 15: return f"Power Fishing agressivo paralelo à margem.\nEquipamento: Cana MH, Braid 30lb.\nIscos: {cor}"
     return f"Jerkbaits Suspending, Ned Rig ou Plastics lentos.\nEquipamento: Cana Medium, Fluoro 10lb.\nIscos: {cor}"
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=1800)
 def obter_dados_meteo(lat, lon):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m,temperature_2m,cloud_cover&hourly=surface_pressure,precipitation,soil_temperature_6cm,wind_speed_10m,cape&daily=precipitation_sum,temperature_2m_max,wind_speed_10m_max&past_days=3&forecast_days=7&timezone=Europe%2FLisbon"
-    try: return requests.get(url, timeout=10).json()
-    except Exception: return None
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&past_days=1&forecast_days=3&timezone=Europe%2FLisbon"
+    headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        res.raise_for_status()
+        return res.json()
+    except Exception:
+        return None
 
-# =========================================================================
-# INTERFACE STREAMLIT
-# =========================================================================
-st.title("🎣 Mestre Tático V26.26 - Engine Absoluto")
+@st.cache_data(ttl=3600)
+def calcular_radar_lote(alvo_sel):
+    # Pedido em Lote (Batch Request): Envia todas as 23 coordenadas numa ÚNICA chamada HTTP
+    lats = ",".join([str(b["lat"]) for b in BARRAGENS_ALENTEJO])
+    lons = ",".join([str(b["lon"]) for b in BARRAGENS_ALENTEJO])
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&timezone=Europe%2FLisbon"
+    headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
+    
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        res.raise_for_status()
+        data = res.json()
+        resultados = data if isinstance(data, list) else [data]
+    except Exception:
+        return None
+
+    resultados_radar = []
+    for idx, b in enumerate(BARRAGENS_ALENTEJO):
+        if idx < len(resultados):
+            dados_b = resultados[idx]
+            if dados_b and 'current' in dados_b and 'hourly' in dados_b:
+                try:
+                    agora = get_hora_atual()
+                    ih = (1 * 24) + agora.hour
+                    p_at = dados_b['current']['surface_pressure']
+                    v_sp = dados_b['current']['wind_speed_10m']
+                    t_ar = dados_b['hourly']['temperature_2m'][ih]
+                    t_ag = t_ar * 0.88 if t_ar > 25.0 else t_ar * 0.92
+                    dp = p_at - dados_b['hourly']['surface_pressure'][max(0, ih-3)]
+                    v_h_list = dados_b['hourly']['wind_speed_10m'][max(0, ih-12):ih+1]
+                    p_h_list = dados_b['hourly']['precipitation'][:ih+1]
+                    
+                    _, m_ren = obter_despacho_hidrico_ren(b['bacia'], b['nome'])
+                    _, m_sei = calcular_ressaca_seiche(v_h_list, b['comprimento_l_km'], b['prof_max'])
+                    _, m_met = fator_metabolico_wisconsin(alvo_sel, t_ag)
+                    _, m_fet = calcular_wind_fetch_e_ondas(dados_b['current']['wind_direction_10m'], v_sp, b['eixo_orientacao'], b['fetch_max_km'], b['tipo_fundo'])
+                    _, m_ox = calcular_oxigenio_dissolvido(t_ag, v_sp)
+                    _, m_run = calcular_escorrimento_antecedente(p_h_list)
+                    ast = obter_astronomia_precisa(b['lat'], b['lon'])
+                    
+                    sc = calcular_score_ahp_v26(alvo_sel, t_ag, v_sp, dp, b['tipo_fundo'], ast.get('day_rating', 2), m_fet, m_ox, m_ren, m_sei, m_met, m_run)
+                    resultados_radar.append({"Albufeira": b['nome'], "Distrito": b['distrito'], "Score (%)": sc, "Temp Água (°C)": round(t_ag, 1), "Vento (km/h)": round(v_sp, 1)})
+                except Exception:
+                    pass
+    return resultados_radar
 
 with st.sidebar:
-    st.header("⚙️ Configuração")
+    st.markdown("### 🎣 Mestre Tático")
+    st.caption("Sistema de Suporte de Decisão Limnológica")
+    st.divider()
+    
     alvo = st.selectbox("🎯 Espécie Alvo", ESPECIES_DISPONIVEIS, index=0)
-    barragem_nome = st.selectbox("📍 Albufeira", sorted([b["nome"] for b in BARRAGENS_ALENTEJO]))
-    b_ativa = next(b for b in BARRAGENS_ALENTEJO if b["nome"] == barragem_nome)
-    st.info(f"**Estrutura:** {b_ativa['estrutura']}")
-
-dados = obter_dados_meteo(b_ativa["lat"], b_ativa["lon"])
-
-if dados:
-    agora = get_hora_atual()
-    idx_h = (3 * 24) + agora.hour
-
-    p_atual = dados['current']['surface_pressure']
-    v_speed = dados['current']['wind_speed_10m']
-    v_gust = dados['current'].get('wind_gusts_10m', v_speed * 1.3)
-    v_dir = dados['current']['wind_direction_10m']
-    t_solo = dados['hourly']['soil_temperature_6cm'][idx_h]
-    t_agua = t_solo * 0.85 if t_solo > 25.0 else t_solo
-    delta_p = p_atual - dados['hourly']['surface_pressure'][max(0, idx_h-3)]
+    modo_app = st.radio("🧭 Modo de Operação", ["📡 Radar Geral (Top Destinos)", "🔍 Dashboard Albufeira"])
     
-    # Historico
-    v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-12):idx_h+1]
-    p_hist = dados['hourly']['precipitation'][:idx_h+1]
+    if modo_app == "🔍 Dashboard Albufeira":
+        st.divider()
+        barragem_nome = st.selectbox("📍 Albufeira Alvo", sorted([b["nome"] for b in BARRAGENS_ALENTEJO]))
+        b_ativa = next(b for b in BARRAGENS_ALENTEJO if b["nome"] == barragem_nome)
+        st.info(f"**Estrutura:** {b_ativa['estrutura']}")
 
-    # V26.26 Math
-    txt_ren, mod_ren = obter_despacho_hidrico_ren(b_ativa['bacia'], b_ativa['nome'])
-    txt_seiche, mod_seiche = calcular_ressaca_seiche(v_hist, b_ativa['comprimento_l_km'], b_ativa['prof_max'])
-    txt_metab, mod_metab = fator_metabolico_wisconsin(alvo, t_agua)
-    txt_fetch, mod_fet = calcular_wind_fetch_e_ondas(v_dir, v_speed, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
-    txt_ox, mod_ox = calcular_oxigenio_dissolvido(t_agua, v_speed)
-    txt_termo = calcular_termoclina_e_estratificacao(t_agua, b_ativa['prof_max'], alvo)
-    txt_run, mod_run = calcular_escorrimento_antecedente(p_hist)
-    astro = obter_astronomia_precisa(b_ativa['lat'], b_ativa['lon'])
+if modo_app == "📡 Radar Geral (Top Destinos)":
+    st.markdown(f"## 📡 Radar Geral — {alvo}")
+    st.caption("Análise multi-critério em tempo real para as albufeiras monitorizadas.")
     
-    score_agora = calcular_score_ahp_v26(alvo, t_agua, v_speed, delta_p, b_ativa['tipo_fundo'], astro.get('day_rating', 2), mod_fet, mod_ox, mod_ren, mod_seiche, mod_metab, mod_run)
+    if st.button("🚀 Iniciar Análise do Radar (Albufeiras)", type="primary"):
+        with st.spinner("A consultar telemetria meteorológica em lote e a calcular scores AHP..."):
+            resultados_radar = calcular_radar_lote(alvo)
+            st.session_state["radar_data"] = resultados_radar
+    else:
+        resultados_radar = st.session_state.get("radar_data", None)
 
-    # UI SUPERIOR
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("📊 SCORE AHP", f"{score_agora}%")
-    c2.metric("🌡️ ÁGUA", f"{t_agua:.1f} °C")
-    c3.metric("🌬️ VENTO", f"{v_speed:.1f} km/h", f"Rajadas {v_gust:.1f}")
-    c4.metric("📉 PRESSÃO", f"{p_atual:.1f} hPa", f"{delta_p:.1f} hPa/3h")
-    
-    st.divider()
-    
-    # LINHA DE DADOS LIMNOLÓGICOS (MARKDOWN)
-    colA, colB = st.columns(2)
-    with colA:
-        st.subheader("🧬 Diagnóstico Limnológico")
-        st.write(txt_metab)
-        st.write(txt_termo)
-        st.write(txt_ox)
-        st.write(txt_seiche)
-        st.write(txt_fetch)
-        st.write(txt_run)
-        st.write(txt_ren)
-
-    with colB:
-        st.subheader("🛠️ Inteligência Tática & ICNF")
-        for alerta in obter_alertas_icnf(alvo, b_ativa):
-            if "PROIBIDO" in alerta or "DEFESO" in alerta: st.error(alerta)
-            elif "ZPR" in alerta: st.warning(alerta)
-            else: st.info(alerta)
-        
-        st.success(f"**🧭 Bússola:** {obter_zona_de_caca(v_dir, v_speed)}")
-        st.info(f"**🛠️ Arsenal:**\n{definir_tatica_apeado(alvo, b_ativa['tipo_fundo'], v_speed)}")
-
-    st.divider()
-
-    # GRÁFICOS REAIS (24H e 7 Dias)
-    st.subheader("📈 Projeção Bayesiana (Dados Reais)")
-    t1, t2 = st.tabs(["Curva 24 Horas", "Previsão 7 Dias"])
-
-    with t1:
-        dados_24h = []
-        for h in range(24):
-            idx = (3 * 24) + h
-            t_solo_h = dados['hourly']['soil_temperature_6cm'][idx]
-            t_agua_h = t_solo_h * 0.85 if t_solo_h > 25.0 else t_solo_h
-            v_h = dados['hourly']['wind_speed_10m'][idx]
-            p_h = dados['hourly']['surface_pressure'][idx]
-            dp_h = p_h - dados['hourly']['surface_pressure'][max(0, idx-3)]
+    if resultados_radar is not None:
+        if resultados_radar:
+            df_radar = pd.DataFrame(resultados_radar).sort_values(by="Score (%)", ascending=False).reset_index(drop=True)
             
-            _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
-            _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
-            _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+            st.markdown("### 🏆 Top 3 Destinos Recomendados")
+            c1, c2, c3 = st.columns(3)
+            top_cols = [c1, c2, c3]
+            medalhas = ["🥇 1º Lugar", "🥈 2º Lugar", "🥉 3º Lugar"]
             
-            score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
-            
-            # Eventos Astro Reais
-            dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
-            dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
-            ev = []
-            if dist_z <= 1.5: ev.append("🌕 Cenit")
-            if dist_n <= 1.5: ev.append("🌑 Nadir")
-            if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
-            if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
-            if dp_h <= -1.0: ev.append("📉 Queda Pressão")
-            
-            dados_24h.append({"Hora": f"{h:02d}:00", "Score": score_h, "Eventos": " | ".join(ev)})
+            for i in range(min(3, len(df_radar))):
+                with top_cols[i]:
+                    with st.container(border=True):
+                        st.markdown(f"#### {medalhas[i]}")
+                        st.markdown(f"**{df_radar.loc[i, 'Albufeira']}**")
+                        st.metric("Score AHP", f"{df_radar.loc[i, 'Score (%)']}%", f"{df_radar.loc[i, 'Temp Água (°C)']} °C")
+                    
+            st.markdown("### 📋 Classificação Completa")
+            st.dataframe(df_radar, use_container_width=True, hide_index=True)
+        else:
+            st.error("⚠️ Erro 429 temporário na Open-Meteo. Aguarda alguns instantes e tenta novamente.")
+    else:
+        st.info("👆 Clica no botão acima para carregar a telemetria do radar em lote de forma instantânea.")
 
-        df_24 = pd.DataFrame(dados_24h)
-        st.bar_chart(df_24.set_index("Hora")["Score"], color="#FF4B4B")
-        st.dataframe(df_24, use_container_width=True, hide_index=True)
-
-    with t2:
-        dias, scores, ventos, temps = [], [], [], []
-        for i in range(3, len(dados['daily']['time'])):
-            t_ar = dados['daily']['temperature_2m_max'][i]
-            v_max = dados['daily']['wind_speed_10m_max'][i]
-            t_ag = t_ar * 0.85 if t_ar > 25.0 else t_ar * 0.9
-            
-            sc_d = calcular_score_ahp_v26(alvo, t_ag, v_max, 0.0, b_ativa['tipo_fundo'], 2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
-            
-            dias.append(datetime.strptime(dados['daily']['time'][i], "%Y-%m-%d").strftime("%d/%m"))
-            scores.append(sc_d)
-            ventos.append(v_max)
-            temps.append(t_ag)
-
-        df_7 = pd.DataFrame({"Data": dias, "Score (%)": scores, "Temp Água Est (°C)": temps, "Vento Max (km/h)": ventos})
-        st.line_chart(df_7.set_index("Data")["Score (%)"])
-        st.dataframe(df_7, use_container_width=True, hide_index=True)
 else:
-    st.error("Falha ao ligar à API. Verifica a tua internet.")
+    dados = obter_dados_meteo(b_ativa["lat"], b_ativa["lon"])
+
+    if dados and 'current' in dados and 'hourly' in dados:
+        agora = get_hora_atual()
+        idx_h = (1 * 24) + agora.hour
+
+        p_atual = dados['current']['surface_pressure']
+        v_speed = dados['current']['wind_speed_10m']
+        v_gust = dados['current'].get('wind_gusts_10m', v_speed * 1.3)
+        v_dir = dados['current']['wind_direction_10m']
+        t_ar_atual = dados['hourly']['temperature_2m'][idx_h]
+        t_agua = t_ar_atual * 0.88 if t_ar_atual > 25.0 else t_ar_atual * 0.92
+        delta_p = p_atual - dados['hourly']['surface_pressure'][max(0, idx_h-3)]
+        
+        v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-12):idx_h+1]
+        p_hist = dados['hourly']['precipitation'][:idx_h+1]
+
+        txt_ren, mod_ren = obter_despacho_hidrico_ren(b_ativa['bacia'], b_ativa['nome'])
+        txt_seiche, mod_seiche = calcular_ressaca_seiche(v_hist, b_ativa['comprimento_l_km'], b_ativa['prof_max'])
+        txt_metab, mod_metab = fator_metabolico_wisconsin(alvo, t_agua)
+        txt_fetch, mod_fet = calcular_wind_fetch_e_ondas(v_dir, v_speed, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+        txt_ox, mod_ox = calcular_oxigenio_dissolvido(t_agua, v_speed)
+        txt_termo = calcular_termoclina_e_estratificacao(t_agua, b_ativa['prof_max'], alvo)
+        txt_run, mod_run = calcular_escorrimento_antecedente(p_hist)
+        astro = obter_astronomia_precisa(b_ativa['lat'], b_ativa['lon'])
+        
+        score_agora = calcular_score_ahp_v26(alvo, t_agua, v_speed, delta_p, b_ativa['tipo_fundo'], astro.get('day_rating', 2), mod_fet, mod_ox, mod_ren, mod_seiche, mod_metab, mod_run)
+
+        st.markdown(f"## 📍 {b_ativa['nome']}")
+        st.caption(f"Distrito de {b_ativa['distrito']} • Bacia do {b_ativa['bacia']} • Alvo: **{alvo}**")
+        
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("📊 Score AHP", f"{score_agora}%")
+        m2.metric("🌡️ Temp. Água", f"{t_agua:.1f} °C")
+        m3.metric("🌬️ Vento", f"{v_speed:.1f} km/h", f"Rajadas {v_gust:.1f}")
+        m4.metric("📉 Pressão", f"{p_atual:.1f} hPa", f"{delta_p:.1f} hPa/3h")
+        
+        st.divider()
+        
+        colA, colB = st.columns(2)
+        
+        with colA:
+            with st.container(border=True):
+                st.markdown("### 🧬 Diagnóstico Limnológico")
+                st.markdown(f"- {txt_metab}")
+                st.markdown(f"- {txt_termo}")
+                st.markdown(f"- {txt_ox}")
+                st.markdown(f"- {txt_seiche}")
+                st.markdown(f"- {txt_fetch}")
+                st.markdown(f"- {txt_run}")
+                st.markdown(f"- {txt_ren}")
+
+        with colB:
+            with st.container(border=True):
+                st.markdown("### 🛠️ Inteligência Tática & ICNF")
+                for alerta in obter_alertas_icnf(alvo, b_ativa):
+                    if "DEFESO" in alerta or "PROIBIDO" in alerta:
+                        st.error(f"🚨 {alerta}")
+                    elif "ZPR" in alerta or "Invasora" in alerta:
+                        st.warning(f"⚠️ {alerta}")
+                    else:
+                        st.info(f"ℹ️ {alerta}")
+                
+                st.markdown(f"**🧭 Bússola de Pesca:**\n{obter_zona_de_caca(v_dir, v_speed)}")
+                st.markdown(f"**🛠️ Arsenal Recomendado:**\n{definir_tatica_apeado(alvo, b_ativa['tipo_fundo'], v_speed)}")
+
+        st.divider()
+
+        st.markdown("### 📈 Projeção Analítica")
+        t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 3 Dias"])
+
+        with t1:
+            dados_24h = []
+            for h in range(24):
+                idx = (1 * 24) + h
+                t_ar_h = dados['hourly']['temperature_2m'][idx]
+                t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
+                v_h = dados['hourly']['wind_speed_10m'][idx]
+                p_h = dados['hourly']['surface_pressure'][idx]
+                dp_h = p_h - dados['hourly']['surface_pressure'][max(0, idx-3)]
+                
+                _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
+                _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
+                _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+                
+                score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
+                
+                dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
+                dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
+                ev = []
+                if dist_z <= 1.5: ev.append("🌕 Cenit")
+                if dist_n <= 1.5: ev.append("🌑 Nadir")
+                if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
+                if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
+                if dp_h <= -1.0: ev.append("📉 Queda Pressão")
+                
+                dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
+
+            df_24 = pd.DataFrame(dados_24h)
+            st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#FF4B4B")
+            st.dataframe(df_24, use_container_width=True, hide_index=True)
+
+        with t2:
+            dias, scores, ventos, temps = [], [], [], []
+            for i in range(1, len(dados['daily']['time'])):
+                t_ar_d = dados['daily']['temperature_2m_max'][i]
+                v_max = dados['daily']['wind_speed_10m_max'][i]
+                t_ag = t_ar_d * 0.88 if t_ar_d > 25.0 else t_ar_d * 0.92
+                
+                sc_d = calcular_score_ahp_v26(alvo, t_ag, v_max, 0.0, b_ativa['tipo_fundo'], 2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+                
+                dias.append(datetime.strptime(dados['daily']['time'][i], "%Y-%m-%d").strftime("%d/%m"))
+                scores.append(sc_d)
+                ventos.append(v_max)
+                temps.append(t_ag)
+
+            df_7 = pd.DataFrame({"Data": dias, "Score (%)": scores, "Temp Água Est (°C)": temps, "Vento Max (km/h)": ventos})
+            st.line_chart(df_7.set_index("Data")["Score (%)"])
+            st.dataframe(df_7, use_container_width=True, hide_index=True)
+    else:
+        st.warning("⚠️ Erro 429 na albufeira individual. O servidor de meteorologia limitou temporariamente o acesso.")
