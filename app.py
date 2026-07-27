@@ -6,10 +6,27 @@ from datetime import datetime, timedelta, timezone
 
 st.set_page_config(page_title="Mestre Tático — Alentejo", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
 
+# --- UI & CSS CUSTOMIZADO ---
 st.markdown("""
     <style>
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; }
-    div[data-testid="stMetric"] { background-color: #1E1E1E; padding: 15px; border-radius: 10px; border: 1px solid #333; }
+    .stApp { background-color: #0E1117; color: #FAFAFA; }
+    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
+    div[data-testid="stVerticalBlock"] > div[style*="border"] {
+        background-color: #161B22; border: 1px solid #30363D !important; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+    div[data-testid="stMetric"] {
+        background-color: #161B22; padding: 18px; border-radius: 12px; border: 1px solid #30363D; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    div[data-testid="stMetric"] label { color: #8B949E !important; font-weight: 600; }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #58A6FF; font-weight: 700; }
+    .stButton button {
+        background-color: #238636; color: white; border-radius: 8px; font-weight: 600; border: none; padding: 0.5rem 1rem; transition: all 0.3s ease;
+    }
+    .stButton button:hover { background-color: #2ea043; box-shadow: 0 0 10px rgba(46, 160, 67, 0.4); }
+    section[data-testid="stSidebar"] { background-color: #010409; border-right: 1px solid #30363D; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
+    .stTabs [data-baseweb="tab"] { background-color: #161B22; border-radius: 8px 8px 0px 0px; color: #C9D1D9; padding: 10px 20px; border: 1px solid #30363D; }
+    .stTabs [aria-selected="true"] { background-color: #21262D !important; color: #58A6FF !important; border-bottom: 2px solid #58A6FF; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -143,62 +160,21 @@ def definir_tatica_apeado(alvo, fundo, v_speed):
     elif v_speed >= 15: return f"Power Fishing agressivo paralelo à margem.\nEquipamento: Cana MH, Braid 30lb.\nIscos: {cor}"
     return f"Jerkbaits Suspending, Ned Rig ou Plastics lentos.\nEquipamento: Cana Medium, Fluoro 10lb.\nIscos: {cor}"
 
-@st.cache_data(ttl=1800)
-def obter_dados_meteo(lat, lon):
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&past_days=1&forecast_days=3&timezone=Europe%2FLisbon"
-    headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        res.raise_for_status()
-        return res.json()
-    except Exception:
-        return None
-
+# --- FUNÇÃO ÚNICA DE LOTE GLOBAL (ELIMINA ERRO 429) ---
 @st.cache_data(ttl=3600)
-def calcular_radar_lote(alvo_sel):
-    # Pedido em Lote (Batch Request): Envia todas as 23 coordenadas numa ÚNICA chamada HTTP
+def obter_dados_globais_lote():
     lats = ",".join([str(b["lat"]) for b in BARRAGENS_ALENTEJO])
     lons = ",".join([str(b["lon"]) for b in BARRAGENS_ALENTEJO])
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&timezone=Europe%2FLisbon"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&past_days=1&forecast_days=3&timezone=Europe%2FLisbon"
     headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
     
     try:
         res = requests.get(url, headers=headers, timeout=15)
         res.raise_for_status()
         data = res.json()
-        resultados = data if isinstance(data, list) else [data]
+        return data if isinstance(data, list) else [data]
     except Exception:
         return None
-
-    resultados_radar = []
-    for idx, b in enumerate(BARRAGENS_ALENTEJO):
-        if idx < len(resultados):
-            dados_b = resultados[idx]
-            if dados_b and 'current' in dados_b and 'hourly' in dados_b:
-                try:
-                    agora = get_hora_atual()
-                    ih = (1 * 24) + agora.hour
-                    p_at = dados_b['current']['surface_pressure']
-                    v_sp = dados_b['current']['wind_speed_10m']
-                    t_ar = dados_b['hourly']['temperature_2m'][ih]
-                    t_ag = t_ar * 0.88 if t_ar > 25.0 else t_ar * 0.92
-                    dp = p_at - dados_b['hourly']['surface_pressure'][max(0, ih-3)]
-                    v_h_list = dados_b['hourly']['wind_speed_10m'][max(0, ih-12):ih+1]
-                    p_h_list = dados_b['hourly']['precipitation'][:ih+1]
-                    
-                    _, m_ren = obter_despacho_hidrico_ren(b['bacia'], b['nome'])
-                    _, m_sei = calcular_ressaca_seiche(v_h_list, b['comprimento_l_km'], b['prof_max'])
-                    _, m_met = fator_metabolico_wisconsin(alvo_sel, t_ag)
-                    _, m_fet = calcular_wind_fetch_e_ondas(dados_b['current']['wind_direction_10m'], v_sp, b['eixo_orientacao'], b['fetch_max_km'], b['tipo_fundo'])
-                    _, m_ox = calcular_oxigenio_dissolvido(t_ag, v_sp)
-                    _, m_run = calcular_escorrimento_antecedente(p_h_list)
-                    ast = obter_astronomia_precisa(b['lat'], b['lon'])
-                    
-                    sc = calcular_score_ahp_v26(alvo_sel, t_ag, v_sp, dp, b['tipo_fundo'], ast.get('day_rating', 2), m_fet, m_ox, m_ren, m_sei, m_met, m_run)
-                    resultados_radar.append({"Albufeira": b['nome'], "Distrito": b['distrito'], "Score (%)": sc, "Temp Água (°C)": round(t_ag, 1), "Vento (km/h)": round(v_sp, 1)})
-                except Exception:
-                    pass
-    return resultados_radar
 
 with st.sidebar:
     st.markdown("### 🎣 Mestre Tático")
@@ -214,16 +190,48 @@ with st.sidebar:
         b_ativa = next(b for b in BARRAGENS_ALENTEJO if b["nome"] == barragem_nome)
         st.info(f"**Estrutura:** {b_ativa['estrutura']}")
 
+# Carrega os dados globais em lote de forma otimizada
+resultados_lote = obter_dados_globais_lote()
+
 if modo_app == "📡 Radar Geral (Top Destinos)":
     st.markdown(f"## 📡 Radar Geral — {alvo}")
     st.caption("Análise multi-critério em tempo real para as albufeiras monitorizadas.")
     
     if st.button("🚀 Iniciar Análise do Radar (Albufeiras)", type="primary"):
-        with st.spinner("A consultar telemetria meteorológica em lote e a calcular scores AHP..."):
-            resultados_radar = calcular_radar_lote(alvo)
+        if resultados_lote:
+            resultados_radar = []
+            for idx, b in enumerate(BARRAGENS_ALENTEJO):
+                if idx < len(resultados_lote):
+                    dados_b = resultados_lote[idx]
+                    if dados_b and 'current' in dados_b and 'hourly' in dados_b:
+                        try:
+                            agora = get_hora_atual()
+                            ih = (1 * 24) + agora.hour
+                            p_at = dados_b['current']['surface_pressure']
+                            v_sp = dados_b['current']['wind_speed_10m']
+                            t_ar = dados_b['hourly']['temperature_2m'][ih]
+                            t_ag = t_ar * 0.88 if t_ar > 25.0 else t_ar * 0.92
+                            dp = p_at - dados_b['hourly']['surface_pressure'][max(0, ih-3)]
+                            v_h_list = dados_b['hourly']['wind_speed_10m'][max(0, ih-12):ih+1]
+                            p_h_list = dados_b['hourly']['precipitation'][:ih+1]
+                            
+                            _, m_ren = obter_despacho_hidrico_ren(b['bacia'], b['nome'])
+                            _, m_sei = calcular_ressaca_seiche(v_h_list, b['comprimento_l_km'], b['prof_max'])
+                            _, m_met = fator_metabolico_wisconsin(alvo, t_ag)
+                            _, m_fet = calcular_wind_fetch_e_ondas(dados_b['current']['wind_direction_10m'], v_sp, b['eixo_orientacao'], b['fetch_max_km'], b['tipo_fundo'])
+                            _, m_ox = calcular_oxigenio_dissolvido(t_ag, v_sp)
+                            _, m_run = calcular_escorrimento_antecedente(p_h_list)
+                            ast = obter_astronomia_precisa(b['lat'], b['lon'])
+                            
+                            sc = calcular_score_ahp_v26(alvo, t_ag, v_sp, dp, b['tipo_fundo'], ast.get('day_rating', 2), m_fet, m_ox, m_ren, m_sei, m_met, m_run)
+                            resultados_radar.append({"Albufeira": b['nome'], "Distrito": b['distrito'], "Score (%)": sc, "Temp Água (°C)": round(t_ag, 1), "Vento (km/h)": round(v_sp, 1)})
+                        except Exception:
+                            pass
             st.session_state["radar_data"] = resultados_radar
-    else:
-        resultados_radar = st.session_state.get("radar_data", None)
+        else:
+            st.error("⚠️ Erro de ligação com a API Open-Meteo. Tenta novamente em instantes.")
+    
+    resultados_radar = st.session_state.get("radar_data", None)
 
     if resultados_radar is not None:
         if resultados_radar:
@@ -244,12 +252,14 @@ if modo_app == "📡 Radar Geral (Top Destinos)":
             st.markdown("### 📋 Classificação Completa")
             st.dataframe(df_radar, use_container_width=True, hide_index=True)
         else:
-            st.error("⚠️ Erro 429 temporário na Open-Meteo. Aguarda alguns instantes e tenta novamente.")
+            st.error("⚠️ Sem dados disponíveis de momento.")
     else:
-        st.info("👆 Clica no botão acima para carregar a telemetria do radar em lote de forma instantânea.")
+        st.info("👆 Clica no botão acima para carregar a telemetria do radar instantaneamente.")
 
 else:
-    dados = obter_dados_meteo(b_ativa["lat"], b_ativa["lon"])
+    # Modo Dashboard Albufeira: Obtém dados diretamente da lista em lote sem novos pedidos HTTP
+    idx_albufeira = next(i for i, b in enumerate(BARRAGENS_ALENTEJO) if b["nome"] == b_ativa["nome"])
+    dados = resultados_lote[idx_albufeira] if resultados_lote and idx_albufeira < len(resultados_lote) else None
 
     if dados and 'current' in dados and 'hourly' in dados:
         agora = get_hora_atual()
@@ -369,4 +379,4 @@ else:
             st.line_chart(df_7.set_index("Data")["Score (%)"])
             st.dataframe(df_7, use_container_width=True, hide_index=True)
     else:
-        st.warning("⚠️ Erro 429 na albufeira individual. O servidor de meteorologia limitou temporariamente o acesso.")
+        st.warning("⚠️ Erro temporário ao carregar os dados desta albufeira. Atualiza a página.")
