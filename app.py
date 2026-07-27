@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import pandas as pd
 import math
+import json
+import os
 from datetime import datetime, timedelta, timezone
 
 st.set_page_config(page_title="Mestre Tático — Alentejo", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
@@ -109,6 +111,38 @@ BARRAGENS_ALENTEJO = [
     {"nome": "Fonte de Serne", "distrito": "Litoral", "bacia": "Sado", "lat": 37.95, "lon": -8.53, "estrutura": "Caniçais densos, fundos argilosos.", "tipo_fundo": "argila", "prof_max": 15, "comprimento_l_km": 5.5, "ipma_id": "Setubal", "eixo_orientacao": 70, "fetch_max_km": 2.8, "regime_icnf": "Regime Geral", "zpr": False}
 ]
 
+CACHE_FILE = "dados_cache_meteo.json"
+
+@st.cache_data(ttl=3600)
+def obter_dados_globais_lote():
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    lats = ",".join([str(b["lat"]) for b in BARRAGENS_ALENTEJO])
+    lons = ",".join([str(b["lon"]) for b in BARRAGENS_ALENTEJO])
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&forecast_days=2&timezone=Europe%2FLisbon"
+    headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
+    
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        res.raise_for_status()
+        data = res.json()
+        resultado = data if isinstance(data, list) else [data]
+        
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(resultado, f)
+            
+        return resultado
+    except Exception:
+        if os.path.exists(CACHE_FILE):
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return None
+
 def calcular_termoclina_e_estratificacao(t_agua, prof_max, alvo):
     if t_agua >= 23.0 and prof_max >= 15:
         return f"🌡️ **Estratificação Térmica**: Superfície quente ({t_agua:.1f}°C). O {alvo} concentra-se estritamente na faixa dos {max(3.0, prof_max * 0.25):.1f}m aos {max(5.0, prof_max * 0.50):.1f}m."
@@ -203,21 +237,6 @@ def definir_tatica_apeado(alvo, fundo, v_speed):
     elif v_speed >= 15: return f"Power Fishing agressivo paralelo à margem.\nEquipamento: Cana MH, Braid 30lb.\nIscos: {cor}"
     return f"Jerkbaits Suspending, Ned Rig ou Plastics lentos.\nEquipamento: Cana Medium, Fluoro 10lb.\nIscos: {cor}"
 
-@st.cache_data(ttl=3600)
-def obter_dados_globais_lote():
-    lats = ",".join([str(b["lat"]) for b in BARRAGENS_ALENTEJO])
-    lons = ",".join([str(b["lon"]) for b in BARRAGENS_ALENTEJO])
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&forecast_days=2&timezone=Europe%2FLisbon"
-    headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
-    
-    try:
-        res = requests.get(url, headers=headers, timeout=15)
-        res.raise_for_status()
-        data = res.json()
-        return data if isinstance(data, list) else [data]
-    except Exception:
-        return None
-
 with st.sidebar:
     st.markdown("### 🎣 Mestre Tático")
     st.caption("Sistema de Suporte de Decisão Limnológica")
@@ -234,13 +253,11 @@ with st.sidebar:
         st.info(f"**Estrutura:** {b_ativa['estrutura']}")
         
     st.divider()
-    # Botão manual para iniciar a pesquisa e evitar pedidos desnecessários à API
     executar_pesquisa = st.button("🚀 Iniciar Pesquisa", type="primary", use_container_width=True)
 
-# Se o utilizador ainda não clicou no botão, mostramos uma mensagem inicial orientadora
 if not executar_pesquisa and "resultados_lote" not in st.session_state:
     st.markdown("## 🎣 Bem-vindo ao Mestre Tático")
-    st.info("👈 Seleciona a espécie, o modo de operação e clica em **'Iniciar Pesquisa'** na barra lateral para carregar os dados em lote de forma otimizada.")
+    st.info("👈 Seleciona a espécie, o modo de operação e clica em **'Iniciar Pesquisa'** na barra lateral para carregar os dados otimizados.")
 else:
     if executar_pesquisa:
         st.session_state["resultados_lote"] = obter_dados_globais_lote()
@@ -373,35 +390,38 @@ else:
 
             st.divider()
 
-            st.markdown("### 📈 Projeção Analítica")
+            st.markdown("### 📈 Projeção Analítica de Hora a Hora")
             t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 2 Dias"])
 
             with t1:
                 dados_24h = []
-                for h in range(24):
-                    if h < len(dados['hourly']['temperature_2m']):
-                        t_ar_h = dados['hourly']['temperature_2m'][h]
-                        t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
-                        v_h = dados['hourly']['wind_speed_10m'][h]
-                        p_h = dados['hourly']['surface_pressure'][h]
-                        dp_h = p_h - dados['hourly']['surface_pressure'][max(0, h-3)]
-                        
-                        _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
-                        _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
-                        _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
-                        
-                        score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
-                        
-                        dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
-                        dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
-                        ev = []
-                        if dist_z <= 1.5: ev.append("🌕 Cenit")
-                        if dist_n <= 1.5: ev.append("🌑 Nadir")
-                        if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
-                        if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
-                        if dp_h <= -1.0: ev.append("📉 Queda Pressão")
-                        
-                        dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
+                for h in range(len(dados['hourly']['temperature_2m'])):
+                    t_ar_h = dados['hourly']['temperature_2m'][h]
+                    t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
+                    v_h = dados['hourly']['wind_speed_10m'][h]
+                    p_h = dados['hourly']['surface_pressure'][h]
+                    dp_h = p_h - dados['hourly']['surface_pressure'][max(0, h-3)]
+                    
+                    _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
+                    _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
+                    _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+                    
+                    score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
+                    
+                    hora_do_dia = h % 24
+                    dist_z = min(abs(hora_do_dia - astro.get('zenith_h', 12)), 24 - abs(hora_do_dia - astro.get('zenith_h', 12)))
+                    dist_n = min(abs(hora_do_dia - astro.get('nadir_h', 0)), 24 - abs(hora_do_dia - astro.get('nadir_h', 0)))
+                    ev = []
+                    if dist_z <= 1.5: ev.append("🌕 Cenit")
+                    if dist_n <= 1.5: ev.append("🌑 Nadir")
+                    if hora_do_dia == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
+                    if hora_do_dia == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
+                    if dp_h <= -1.0: ev.append("📉 Queda Pressão")
+                    
+                    dia_offset = h // 24
+                    rotulo_hora = f"Dia +{dia_offset} {hora_do_dia:02d}:00" if dia_offset > 0 else f"Hoje {hora_do_dia:02d}:00"
+                    
+                    dados_24h.append({"Hora": rotulo_hora, "Score (%)": score_h, "Eventos": " | ".join(ev)})
 
                 df_24 = pd.DataFrame(dados_24h)
                 st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#38bdf8")
