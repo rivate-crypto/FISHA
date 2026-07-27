@@ -6,27 +6,96 @@ from datetime import datetime, timedelta, timezone
 
 st.set_page_config(page_title="Mestre Tático — Alentejo", page_icon="🎣", layout="wide", initial_sidebar_state="expanded")
 
-# --- UI & CSS CUSTOMIZADO ---
+# --- UI & CSS CUSTOMIZADO (CLEAN TACTICAL HUD DESIGN) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0E1117; color: #FAFAFA; }
-    .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1200px; }
+    /* Global Styles */
+    .stApp {
+        background-color: #0b0f17;
+        color: #e2e8f0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        max-width: 1300px;
+    }
+    
+    /* Sidebar Minimalista */
+    section[data-testid="stSidebar"] {
+        background-color: #07090e;
+        border-right: 1px: solid #1e293b;
+    }
+
+    /* Títulos com Estilo HUD */
+    h1, h2, h3 {
+        color: #f8fafc;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+    }
+    
+    /* Cartões Modernos e Sutis */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
-        background-color: #161B22; border: 1px solid #30363D !important; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        background-color: #111827;
+        border: 1px solid #1f2937 !important;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
+    
+    /* Métricas Elegantes */
     div[data-testid="stMetric"] {
-        background-color: #161B22; padding: 18px; border-radius: 12px; border: 1px solid #30363D; box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        background-color: #111827;
+        padding: 16px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
     }
-    div[data-testid="stMetric"] label { color: #8B949E !important; font-weight: 600; }
-    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #58A6FF; font-weight: 700; }
+    div[data-testid="stMetric"] label {
+        color: #94a3b8 !important;
+        font-weight: 500;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+        color: #38bdf8;
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+
+    /* Botões Estilizados */
     .stButton button {
-        background-color: #238636; color: white; border-radius: 8px; font-weight: 600; border: none; padding: 0.5rem 1rem; transition: all 0.3s ease;
+        background-color: #0284c7;
+        color: #ffffff;
+        border-radius: 8px;
+        font-weight: 600;
+        border: none;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
     }
-    .stButton button:hover { background-color: #2ea043; box-shadow: 0 0 10px rgba(46, 160, 67, 0.4); }
-    section[data-testid="stSidebar"] { background-color: #010409; border-right: 1px solid #30363D; }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] { background-color: #161B22; border-radius: 8px 8px 0px 0px; color: #C9D1D9; padding: 10px 20px; border: 1px solid #30363D; }
-    .stTabs [aria-selected="true"] { background-color: #21262D !important; color: #58A6FF !important; border-bottom: 2px solid #58A6FF; }
+    .stButton button:hover {
+        background-color: #0369a1;
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+
+    /* Tabs Limpas */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 6px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #111827;
+        border-radius: 6px 6px 0px 0px;
+        color: #94a3b8;
+        padding: 8px 16px;
+        border: 1px solid #1f2937;
+        font-weight: 500;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1f2937 !important;
+        color: #38bdf8 !important;
+        border-bottom: 2px solid #38bdf8;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -73,10 +142,10 @@ def calcular_termoclina_e_estratificacao(t_agua, prof_max, alvo):
     return f"🟢 **Mistura**: Coluna de água sem barreira térmica severa ({t_agua:.1f}°C)."
 
 def calcular_escorrimento_antecedente(precip_list):
-    if not precip_list or len(precip_list) < 72: return "💧 **Runoff**: Dados normais.", 1.00
-    chuva_72h = sum(precip_list[-72:])
-    if chuva_72h > 15.0: return f"🌊 **Runoff Severo**: {chuva_72h:.1f} mm em 72h. Mudlines ativas!", 1.15
-    elif chuva_72h > 5.0: return f"💧 **Runoff Moderado**: {chuva_72h:.1f} mm em 72h.", 1.08
+    if not precip_list or len(precip_list) < 24: return "💧 **Runoff**: Dados normais.", 1.00
+    chuva_24h = sum(precip_list[-24:])
+    if chuva_24h > 15.0: return f"🌊 **Runoff Severo**: {chuva_24h:.1f} mm recentes. Mudlines ativas!", 1.15
+    elif chuva_24h > 5.0: return f"💧 **Runoff Moderado**: {chuva_24h:.1f} mm recentes.", 1.08
     return "🟢 **Runoff**: Sem escorrimento torrencial recente.", 1.00
 
 def obter_astronomia_precisa(lat, lon, date_dt=None):
@@ -160,12 +229,11 @@ def definir_tatica_apeado(alvo, fundo, v_speed):
     elif v_speed >= 15: return f"Power Fishing agressivo paralelo à margem.\nEquipamento: Cana MH, Braid 30lb.\nIscos: {cor}"
     return f"Jerkbaits Suspending, Ned Rig ou Plastics lentos.\nEquipamento: Cana Medium, Fluoro 10lb.\nIscos: {cor}"
 
-# --- FUNÇÃO ÚNICA DE LOTE GLOBAL (ELIMINA ERRO 429) ---
 @st.cache_data(ttl=3600)
 def obter_dados_globais_lote():
     lats = ",".join([str(b["lat"]) for b in BARRAGENS_ALENTEJO])
     lons = ",".join([str(b["lon"]) for b in BARRAGENS_ALENTEJO])
-    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&past_days=1&forecast_days=3&timezone=Europe%2FLisbon"
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lats}&longitude={lons}&current=temperature_2m,surface_pressure,wind_speed_10m,wind_gusts_10m,wind_direction_10m&hourly=temperature_2m,surface_pressure,precipitation,wind_speed_10m&daily=temperature_2m_max,wind_speed_10m_max,precipitation_sum&forecast_days=2&timezone=Europe%2FLisbon"
     headers = {"User-Agent": "MestreTatico-Alentejo/1.0"}
     
     try:
@@ -190,7 +258,6 @@ with st.sidebar:
         b_ativa = next(b for b in BARRAGENS_ALENTEJO if b["nome"] == barragem_nome)
         st.info(f"**Estrutura:** {b_ativa['estrutura']}")
 
-# Carrega os dados globais em lote de forma otimizada
 resultados_lote = obter_dados_globais_lote()
 
 if modo_app == "📡 Radar Geral (Top Destinos)":
@@ -206,13 +273,13 @@ if modo_app == "📡 Radar Geral (Top Destinos)":
                     if dados_b and 'current' in dados_b and 'hourly' in dados_b:
                         try:
                             agora = get_hora_atual()
-                            ih = (1 * 24) + agora.hour
+                            ih = agora.hour
                             p_at = dados_b['current']['surface_pressure']
                             v_sp = dados_b['current']['wind_speed_10m']
                             t_ar = dados_b['hourly']['temperature_2m'][ih]
                             t_ag = t_ar * 0.88 if t_ar > 25.0 else t_ar * 0.92
                             dp = p_at - dados_b['hourly']['surface_pressure'][max(0, ih-3)]
-                            v_h_list = dados_b['hourly']['wind_speed_10m'][max(0, ih-12):ih+1]
+                            v_h_list = dados_b['hourly']['wind_speed_10m'][max(0, ih-6):ih+1]
                             p_h_list = dados_b['hourly']['precipitation'][:ih+1]
                             
                             _, m_ren = obter_despacho_hidrico_ren(b['bacia'], b['nome'])
@@ -229,7 +296,7 @@ if modo_app == "📡 Radar Geral (Top Destinos)":
                             pass
             st.session_state["radar_data"] = resultados_radar
         else:
-            st.error("⚠️ Erro de ligação com a API Open-Meteo. Tenta novamente em instantes.")
+            st.error("⚠️ Servidor de meteorologia em Cooldown (Erro 429). Tenta novamente daqui a alguns minutos.")
     
     resultados_radar = st.session_state.get("radar_data", None)
 
@@ -252,18 +319,17 @@ if modo_app == "📡 Radar Geral (Top Destinos)":
             st.markdown("### 📋 Classificação Completa")
             st.dataframe(df_radar, use_container_width=True, hide_index=True)
         else:
-            st.error("⚠️ Sem dados disponíveis de momento.")
+            st.error("⚠️ Sem dados disponíveis devido ao bloqueio temporário da API.")
     else:
         st.info("👆 Clica no botão acima para carregar a telemetria do radar instantaneamente.")
 
 else:
-    # Modo Dashboard Albufeira: Obtém dados diretamente da lista em lote sem novos pedidos HTTP
     idx_albufeira = next(i for i, b in enumerate(BARRAGENS_ALENTEJO) if b["nome"] == b_ativa["nome"])
     dados = resultados_lote[idx_albufeira] if resultados_lote and idx_albufeira < len(resultados_lote) else None
 
     if dados and 'current' in dados and 'hourly' in dados:
         agora = get_hora_atual()
-        idx_h = (1 * 24) + agora.hour
+        idx_h = agora.hour
 
         p_atual = dados['current']['surface_pressure']
         v_speed = dados['current']['wind_speed_10m']
@@ -273,7 +339,7 @@ else:
         t_agua = t_ar_atual * 0.88 if t_ar_atual > 25.0 else t_ar_atual * 0.92
         delta_p = p_atual - dados['hourly']['surface_pressure'][max(0, idx_h-3)]
         
-        v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-12):idx_h+1]
+        v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-6):idx_h+1]
         p_hist = dados['hourly']['precipitation'][:idx_h+1]
 
         txt_ren, mod_ren = obter_despacho_hidrico_ren(b_ativa['bacia'], b_ativa['nome'])
@@ -328,42 +394,42 @@ else:
         st.divider()
 
         st.markdown("### 📈 Projeção Analítica")
-        t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 3 Dias"])
+        t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 2 Dias"])
 
         with t1:
             dados_24h = []
             for h in range(24):
-                idx = (1 * 24) + h
-                t_ar_h = dados['hourly']['temperature_2m'][idx]
-                t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
-                v_h = dados['hourly']['wind_speed_10m'][idx]
-                p_h = dados['hourly']['surface_pressure'][idx]
-                dp_h = p_h - dados['hourly']['surface_pressure'][max(0, idx-3)]
-                
-                _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
-                _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
-                _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
-                
-                score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
-                
-                dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
-                dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
-                ev = []
-                if dist_z <= 1.5: ev.append("🌕 Cenit")
-                if dist_n <= 1.5: ev.append("🌑 Nadir")
-                if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
-                if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
-                if dp_h <= -1.0: ev.append("📉 Queda Pressão")
-                
-                dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
+                if h < len(dados['hourly']['temperature_2m']):
+                    t_ar_h = dados['hourly']['temperature_2m'][h]
+                    t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
+                    v_h = dados['hourly']['wind_speed_10m'][h]
+                    p_h = dados['hourly']['surface_pressure'][h]
+                    dp_h = p_h - dados['hourly']['surface_pressure'][max(0, h-3)]
+                    
+                    _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
+                    _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
+                    _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+                    
+                    score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
+                    
+                    dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
+                    dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
+                    ev = []
+                    if dist_z <= 1.5: ev.append("🌕 Cenit")
+                    if dist_n <= 1.5: ev.append("🌑 Nadir")
+                    if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
+                    if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
+                    if dp_h <= -1.0: ev.append("📉 Queda Pressão")
+                    
+                    dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
 
             df_24 = pd.DataFrame(dados_24h)
-            st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#FF4B4B")
+            st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#38bdf8")
             st.dataframe(df_24, use_container_width=True, hide_index=True)
 
         with t2:
             dias, scores, ventos, temps = [], [], [], []
-            for i in range(1, len(dados['daily']['time'])):
+            for i in range(len(dados['daily']['time'])):
                 t_ar_d = dados['daily']['temperature_2m_max'][i]
                 v_max = dados['daily']['wind_speed_10m_max'][i]
                 t_ag = t_ar_d * 0.88 if t_ar_d > 25.0 else t_ar_d * 0.92
@@ -376,7 +442,7 @@ else:
                 temps.append(t_ag)
 
             df_7 = pd.DataFrame({"Data": dias, "Score (%)": scores, "Temp Água Est (°C)": temps, "Vento Max (km/h)": ventos})
-            st.line_chart(df_7.set_index("Data")["Score (%)"])
+            st.line_chart(df_7.set_index("Data")["Score (%)"], color="#38bdf8")
             st.dataframe(df_7, use_container_width=True, hide_index=True)
     else:
-        st.warning("⚠️ Erro temporário ao carregar os dados desta albufeira. Atualiza a página.")
+        st.warning("⚠️ O servidor da API encontra-se temporariamente em bloqueio (Erro 429). Se persistir, aguarda 15 a 30 minutos.")
