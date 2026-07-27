@@ -9,7 +9,6 @@ st.set_page_config(page_title="Mestre Tático — Alentejo", page_icon="🎣", l
 # --- UI & CSS CUSTOMIZADO (CLEAN TACTICAL HUD DESIGN) ---
 st.markdown("""
     <style>
-    /* Global Styles */
     .stApp {
         background-color: #0b0f17;
         color: #e2e8f0;
@@ -20,21 +19,15 @@ st.markdown("""
         padding-bottom: 2rem;
         max-width: 1300px;
     }
-    
-    /* Sidebar Minimalista */
     section[data-testid="stSidebar"] {
         background-color: #07090e;
-        border-right: 1px: solid #1e293b;
+        border-right: 1px solid #1e293b;
     }
-
-    /* Títulos com Estilo HUD */
     h1, h2, h3 {
         color: #f8fafc;
         font-weight: 700;
         letter-spacing: -0.03em;
     }
-    
-    /* Cartões Modernos e Sutis */
     div[data-testid="stVerticalBlock"] > div[style*="border"] {
         background-color: #111827;
         border: 1px solid #1f2937 !important;
@@ -42,8 +35,6 @@ st.markdown("""
         padding: 20px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     }
-    
-    /* Métricas Elegantes */
     div[data-testid="stMetric"] {
         background-color: #111827;
         padding: 16px;
@@ -62,23 +53,6 @@ st.markdown("""
         font-weight: 700;
         font-size: 1.5rem;
     }
-
-    /* Botões Estilizados */
-    .stButton button {
-        background-color: #0284c7;
-        color: #ffffff;
-        border-radius: 8px;
-        font-weight: 600;
-        border: none;
-        padding: 0.5rem 1rem;
-        transition: all 0.2s ease;
-    }
-    .stButton button:hover {
-        background-color: #0369a1;
-        box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
-    }
-
-    /* Tabs Limpas */
     .stTabs [data-baseweb="tab-list"] {
         gap: 6px;
         background-color: transparent;
@@ -252,19 +226,31 @@ with st.sidebar:
     alvo = st.selectbox("🎯 Espécie Alvo", ESPECIES_DISPONIVEIS, index=0)
     modo_app = st.radio("🧭 Modo de Operação", ["📡 Radar Geral (Top Destinos)", "🔍 Dashboard Albufeira"])
     
+    b_ativa = None
     if modo_app == "🔍 Dashboard Albufeira":
         st.divider()
         barragem_nome = st.selectbox("📍 Albufeira Alvo", sorted([b["nome"] for b in BARRAGENS_ALENTEJO]))
         b_ativa = next(b for b in BARRAGENS_ALENTEJO if b["nome"] == barragem_nome)
         st.info(f"**Estrutura:** {b_ativa['estrutura']}")
+        
+    st.divider()
+    # Botão manual para iniciar a pesquisa e evitar pedidos desnecessários à API
+    executar_pesquisa = st.button("🚀 Iniciar Pesquisa", type="primary", use_container_width=True)
 
-resultados_lote = obter_dados_globais_lote()
+# Se o utilizador ainda não clicou no botão, mostramos uma mensagem inicial orientadora
+if not executar_pesquisa and "resultados_lote" not in st.session_state:
+    st.markdown("## 🎣 Bem-vindo ao Mestre Tático")
+    st.info("👈 Seleciona a espécie, o modo de operação e clica em **'Iniciar Pesquisa'** na barra lateral para carregar os dados em lote de forma otimizada.")
+else:
+    if executar_pesquisa:
+        st.session_state["resultados_lote"] = obter_dados_globais_lote()
 
-if modo_app == "📡 Radar Geral (Top Destinos)":
-    st.markdown(f"## 📡 Radar Geral — {alvo}")
-    st.caption("Análise multi-critério em tempo real para as albufeiras monitorizadas.")
-    
-    if st.button("🚀 Iniciar Análise do Radar (Albufeiras)", type="primary"):
+    resultados_lote = st.session_state.get("resultados_lote", None)
+
+    if modo_app == "📡 Radar Geral (Top Destinos)":
+        st.markdown(f"## 📡 Radar Geral — {alvo}")
+        st.caption("Análise multi-critério em tempo real para as albufeiras monitorizadas.")
+        
         if resultados_lote:
             resultados_radar = []
             for idx, b in enumerate(BARRAGENS_ALENTEJO):
@@ -294,155 +280,149 @@ if modo_app == "📡 Radar Geral (Top Destinos)":
                             resultados_radar.append({"Albufeira": b['nome'], "Distrito": b['distrito'], "Score (%)": sc, "Temp Água (°C)": round(t_ag, 1), "Vento (km/h)": round(v_sp, 1)})
                         except Exception:
                             pass
-            st.session_state["radar_data"] = resultados_radar
-        else:
-            st.error("⚠️ Servidor de meteorologia em Cooldown (Erro 429). Tenta novamente daqui a alguns minutos.")
-    
-    resultados_radar = st.session_state.get("radar_data", None)
-
-    if resultados_radar is not None:
-        if resultados_radar:
-            df_radar = pd.DataFrame(resultados_radar).sort_values(by="Score (%)", ascending=False).reset_index(drop=True)
             
-            st.markdown("### 🏆 Top 3 Destinos Recomendados")
-            c1, c2, c3 = st.columns(3)
-            top_cols = [c1, c2, c3]
-            medalhas = ["🥇 1º Lugar", "🥈 2º Lugar", "🥉 3º Lugar"]
-            
-            for i in range(min(3, len(df_radar))):
-                with top_cols[i]:
-                    with st.container(border=True):
-                        st.markdown(f"#### {medalhas[i]}")
-                        st.markdown(f"**{df_radar.loc[i, 'Albufeira']}**")
-                        st.metric("Score AHP", f"{df_radar.loc[i, 'Score (%)']}%", f"{df_radar.loc[i, 'Temp Água (°C)']} °C")
-                    
-            st.markdown("### 📋 Classificação Completa")
-            st.dataframe(df_radar, use_container_width=True, hide_index=True)
+            if resultados_radar:
+                df_radar = pd.DataFrame(resultados_radar).sort_values(by="Score (%)", ascending=False).reset_index(drop=True)
+                
+                st.markdown("### 🏆 Top 3 Destinos Recomendados")
+                c1, c2, c3 = st.columns(3)
+                top_cols = [c1, c2, c3]
+                medalhas = ["🥇 1º Lugar", "🥈 2º Lugar", "🥉 3º Lugar"]
+                
+                for i in range(min(3, len(df_radar))):
+                    with top_cols[i]:
+                        with st.container(border=True):
+                            st.markdown(f"#### {medalhas[i]}")
+                            st.markdown(f"**{df_radar.loc[i, 'Albufeira']}**")
+                            st.metric("Score AHP", f"{df_radar.loc[i, 'Score (%)']}%", f"{df_radar.loc[i, 'Temp Água (°C)']} °C")
+                        
+                st.markdown("### 📋 Classificação Completa")
+                st.dataframe(df_radar, use_container_width=True, hide_index=True)
+            else:
+                st.error("⚠️ Sem dados disponíveis devido ao bloqueio temporário da API.")
         else:
-            st.error("⚠️ Sem dados disponíveis devido ao bloqueio temporário da API.")
+            st.error("⚠️ Servidor de meteorologia em Cooldown (Erro 429). O bloqueio temporário do IP expira em breve.")
+
     else:
-        st.info("👆 Clica no botão acima para carregar a telemetria do radar instantaneamente.")
+        idx_albufeira = next(i for i, b in enumerate(BARRAGENS_ALENTEJO) if b["nome"] == b_ativa["nome"])
+        dados = resultados_lote[idx_albufeira] if resultados_lote and idx_albufeira < len(resultados_lote) else None
 
-else:
-    idx_albufeira = next(i for i, b in enumerate(BARRAGENS_ALENTEJO) if b["nome"] == b_ativa["nome"])
-    dados = resultados_lote[idx_albufeira] if resultados_lote and idx_albufeira < len(resultados_lote) else None
+        if dados and 'current' in dados and 'hourly' in dados:
+            agora = get_hora_atual()
+            idx_h = agora.hour
 
-    if dados and 'current' in dados and 'hourly' in dados:
-        agora = get_hora_atual()
-        idx_h = agora.hour
+            p_atual = dados['current']['surface_pressure']
+            v_speed = dados['current']['wind_speed_10m']
+            v_gust = dados['current'].get('wind_gusts_10m', v_speed * 1.3)
+            v_dir = dados['current']['wind_direction_10m']
+            t_ar_atual = dados['hourly']['temperature_2m'][idx_h]
+            t_agua = t_ar_atual * 0.88 if t_ar_atual > 25.0 else t_ar_atual * 0.92
+            delta_p = p_atual - dados['hourly']['surface_pressure'][max(0, idx_h-3)]
+            
+            v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-6):idx_h+1]
+            p_hist = dados['hourly']['precipitation'][:idx_h+1]
 
-        p_atual = dados['current']['surface_pressure']
-        v_speed = dados['current']['wind_speed_10m']
-        v_gust = dados['current'].get('wind_gusts_10m', v_speed * 1.3)
-        v_dir = dados['current']['wind_direction_10m']
-        t_ar_atual = dados['hourly']['temperature_2m'][idx_h]
-        t_agua = t_ar_atual * 0.88 if t_ar_atual > 25.0 else t_ar_atual * 0.92
-        delta_p = p_atual - dados['hourly']['surface_pressure'][max(0, idx_h-3)]
-        
-        v_hist = dados['hourly']['wind_speed_10m'][max(0, idx_h-6):idx_h+1]
-        p_hist = dados['hourly']['precipitation'][:idx_h+1]
+            txt_ren, mod_ren = obter_despacho_hidrico_ren(b_ativa['bacia'], b_ativa['nome'])
+            txt_seiche, mod_seiche = calcular_ressaca_seiche(v_hist, b_ativa['comprimento_l_km'], b_ativa['prof_max'])
+            txt_metab, mod_metab = fator_metabolico_wisconsin(alvo, t_agua)
+            txt_fetch, mod_fet = calcular_wind_fetch_e_ondas(v_dir, v_speed, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+            txt_ox, mod_ox = calcular_oxigenio_dissolvido(t_agua, v_speed)
+            txt_termo = calcular_termoclina_e_estratificacao(t_agua, b_ativa['prof_max'], alvo)
+            txt_run, mod_run = calcular_escorrimento_antecedente(p_hist)
+            astro = obter_astronomia_precisa(b_ativa['lat'], b_ativa['lon'])
+            
+            score_agora = calcular_score_ahp_v26(alvo, t_agua, v_speed, delta_p, b_ativa['tipo_fundo'], astro.get('day_rating', 2), mod_fet, mod_ox, mod_ren, mod_seiche, mod_metab, mod_run)
 
-        txt_ren, mod_ren = obter_despacho_hidrico_ren(b_ativa['bacia'], b_ativa['nome'])
-        txt_seiche, mod_seiche = calcular_ressaca_seiche(v_hist, b_ativa['comprimento_l_km'], b_ativa['prof_max'])
-        txt_metab, mod_metab = fator_metabolico_wisconsin(alvo, t_agua)
-        txt_fetch, mod_fet = calcular_wind_fetch_e_ondas(v_dir, v_speed, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
-        txt_ox, mod_ox = calcular_oxigenio_dissolvido(t_agua, v_speed)
-        txt_termo = calcular_termoclina_e_estratificacao(t_agua, b_ativa['prof_max'], alvo)
-        txt_run, mod_run = calcular_escorrimento_antecedente(p_hist)
-        astro = obter_astronomia_precisa(b_ativa['lat'], b_ativa['lon'])
-        
-        score_agora = calcular_score_ahp_v26(alvo, t_agua, v_speed, delta_p, b_ativa['tipo_fundo'], astro.get('day_rating', 2), mod_fet, mod_ox, mod_ren, mod_seiche, mod_metab, mod_run)
+            st.markdown(f"## 📍 {b_ativa['nome']}")
+            st.caption(f"Distrito de {b_ativa['distrito']} • Bacia do {b_ativa['bacia']} • Alvo: **{alvo}**")
+            
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("📊 Score AHP", f"{score_agora}%")
+            m2.metric("🌡️ Temp. Água", f"{t_agua:.1f} °C")
+            m3.metric("🌬️ Vento", f"{v_speed:.1f} km/h", f"Rajadas {v_gust:.1f}")
+            m4.metric("📉 Pressão", f"{p_atual:.1f} hPa", f"{delta_p:.1f} hPa/3h")
+            
+            st.divider()
+            
+            colA, colB = st.columns(2)
+            
+            with colA:
+                with st.container(border=True):
+                    st.markdown("### 🧬 Diagnóstico Limnológico")
+                    st.markdown(f"- {txt_metab}")
+                    st.markdown(f"- {txt_termo}")
+                    st.markdown(f"- {txt_ox}")
+                    st.markdown(f"- {txt_seiche}")
+                    st.markdown(f"- {txt_fetch}")
+                    st.markdown(f"- {txt_run}")
+                    st.markdown(f"- {txt_ren}")
 
-        st.markdown(f"## 📍 {b_ativa['nome']}")
-        st.caption(f"Distrito de {b_ativa['distrito']} • Bacia do {b_ativa['bacia']} • Alvo: **{alvo}**")
-        
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("📊 Score AHP", f"{score_agora}%")
-        m2.metric("🌡️ Temp. Água", f"{t_agua:.1f} °C")
-        m3.metric("🌬️ Vento", f"{v_speed:.1f} km/h", f"Rajadas {v_gust:.1f}")
-        m4.metric("📉 Pressão", f"{p_atual:.1f} hPa", f"{delta_p:.1f} hPa/3h")
-        
-        st.divider()
-        
-        colA, colB = st.columns(2)
-        
-        with colA:
-            with st.container(border=True):
-                st.markdown("### 🧬 Diagnóstico Limnológico")
-                st.markdown(f"- {txt_metab}")
-                st.markdown(f"- {txt_termo}")
-                st.markdown(f"- {txt_ox}")
-                st.markdown(f"- {txt_seiche}")
-                st.markdown(f"- {txt_fetch}")
-                st.markdown(f"- {txt_run}")
-                st.markdown(f"- {txt_ren}")
-
-        with colB:
-            with st.container(border=True):
-                st.markdown("### 🛠️ Inteligência Tática & ICNF")
-                for alerta in obter_alertas_icnf(alvo, b_ativa):
-                    if "DEFESO" in alerta or "PROIBIDO" in alerta:
-                        st.error(f"🚨 {alerta}")
-                    elif "ZPR" in alerta or "Invasora" in alerta:
-                        st.warning(f"⚠️ {alerta}")
-                    else:
-                        st.info(f"ℹ️ {alerta}")
-                
-                st.markdown(f"**🧭 Bússola de Pesca:**\n{obter_zona_de_caca(v_dir, v_speed)}")
-                st.markdown(f"**🛠️ Arsenal Recomendado:**\n{definir_tatica_apeado(alvo, b_ativa['tipo_fundo'], v_speed)}")
-
-        st.divider()
-
-        st.markdown("### 📈 Projeção Analítica")
-        t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 2 Dias"])
-
-        with t1:
-            dados_24h = []
-            for h in range(24):
-                if h < len(dados['hourly']['temperature_2m']):
-                    t_ar_h = dados['hourly']['temperature_2m'][h]
-                    t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
-                    v_h = dados['hourly']['wind_speed_10m'][h]
-                    p_h = dados['hourly']['surface_pressure'][h]
-                    dp_h = p_h - dados['hourly']['surface_pressure'][max(0, h-3)]
+            with colB:
+                with st.container(border=True):
+                    st.markdown("### 🛠️ Inteligência Tática & ICNF")
+                    for alerta in obter_alertas_icnf(alvo, b_ativa):
+                        if "DEFESO" in alerta or "PROIBIDO" in alerta:
+                            st.error(f"🚨 {alerta}")
+                        elif "ZPR" in alerta or "Invasora" in alerta:
+                            st.warning(f"⚠️ {alerta}")
+                        else:
+                            st.info(f"ℹ️ {alerta}")
                     
-                    _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
-                    _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
-                    _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
-                    
-                    score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
-                    
-                    dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
-                    dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
-                    ev = []
-                    if dist_z <= 1.5: ev.append("🌕 Cenit")
-                    if dist_n <= 1.5: ev.append("🌑 Nadir")
-                    if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
-                    if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
-                    if dp_h <= -1.0: ev.append("📉 Queda Pressão")
-                    
-                    dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
+                    st.markdown(f"**🧭 Bússola de Pesca:**\n{obter_zona_de_caca(v_dir, v_speed)}")
+                    st.markdown(f"**🛠️ Arsenal Recomendado:**\n{definir_tatica_apeado(alvo, b_ativa['tipo_fundo'], v_speed)}")
 
-            df_24 = pd.DataFrame(dados_24h)
-            st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#38bdf8")
-            st.dataframe(df_24, use_container_width=True, hide_index=True)
+            st.divider()
 
-        with t2:
-            dias, scores, ventos, temps = [], [], [], []
-            for i in range(len(dados['daily']['time'])):
-                t_ar_d = dados['daily']['temperature_2m_max'][i]
-                v_max = dados['daily']['wind_speed_10m_max'][i]
-                t_ag = t_ar_d * 0.88 if t_ar_d > 25.0 else t_ar_d * 0.92
-                
-                sc_d = calcular_score_ahp_v26(alvo, t_ag, v_max, 0.0, b_ativa['tipo_fundo'], 2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
-                
-                dias.append(datetime.strptime(dados['daily']['time'][i], "%Y-%m-%d").strftime("%d/%m"))
-                scores.append(sc_d)
-                ventos.append(v_max)
-                temps.append(t_ag)
+            st.markdown("### 📈 Projeção Analítica")
+            t1, t2 = st.tabs(["Curva 24 Horas", "Previsão a 2 Dias"])
 
-            df_7 = pd.DataFrame({"Data": dias, "Score (%)": scores, "Temp Água Est (°C)": temps, "Vento Max (km/h)": ventos})
-            st.line_chart(df_7.set_index("Data")["Score (%)"], color="#38bdf8")
-            st.dataframe(df_7, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ O servidor da API encontra-se temporariamente em bloqueio (Erro 429). Se persistir, aguarda 15 a 30 minutos.")
+            with t1:
+                dados_24h = []
+                for h in range(24):
+                    if h < len(dados['hourly']['temperature_2m']):
+                        t_ar_h = dados['hourly']['temperature_2m'][h]
+                        t_agua_h = t_ar_h * 0.88 if t_ar_h > 25.0 else t_ar_h * 0.92
+                        v_h = dados['hourly']['wind_speed_10m'][h]
+                        p_h = dados['hourly']['surface_pressure'][h]
+                        dp_h = p_h - dados['hourly']['surface_pressure'][max(0, h-3)]
+                        
+                        _, m_metab_h = fator_metabolico_wisconsin(alvo, t_agua_h)
+                        _, m_ox_h = calcular_oxigenio_dissolvido(t_agua_h, v_h)
+                        _, m_fet_h = calcular_wind_fetch_e_ondas(0, v_h, b_ativa['eixo_orientacao'], b_ativa['fetch_max_km'], b_ativa['tipo_fundo'])
+                        
+                        score_h = calcular_score_ahp_v26(alvo, t_agua_h, v_h, dp_h, b_ativa['tipo_fundo'], astro.get('day_rating', 2), m_fet_h, m_ox_h, 1.0, 1.0, m_metab_h, 1.0)
+                        
+                        dist_z = min(abs(h - astro.get('zenith_h', 12)), 24 - abs(h - astro.get('zenith_h', 12)))
+                        dist_n = min(abs(h - astro.get('nadir_h', 0)), 24 - abs(h - astro.get('nadir_h', 0)))
+                        ev = []
+                        if dist_z <= 1.5: ev.append("🌕 Cenit")
+                        if dist_n <= 1.5: ev.append("🌑 Nadir")
+                        if h == astro.get('sunrise_h', 6): ev.append("🌅 Alvorada")
+                        if h == astro.get('sunset_h', 21): ev.append("🌇 Crepúsculo")
+                        if dp_h <= -1.0: ev.append("📉 Queda Pressão")
+                        
+                        dados_24h.append({"Hora": f"{h:02d}:00", "Score (%)": score_h, "Eventos": " | ".join(ev)})
+
+                df_24 = pd.DataFrame(dados_24h)
+                st.bar_chart(df_24.set_index("Hora")["Score (%)"], color="#38bdf8")
+                st.dataframe(df_24, use_container_width=True, hide_index=True)
+
+            with t2:
+                dias, scores, ventos, temps = [], [], [], []
+                for i in range(len(dados['daily']['time'])):
+                    t_ar_d = dados['daily']['temperature_2m_max'][i]
+                    v_max = dados['daily']['wind_speed_10m_max'][i]
+                    t_ag = t_ar_d * 0.88 if t_ar_d > 25.0 else t_ar_d * 0.92
+                    
+                    sc_d = calcular_score_ahp_v26(alvo, t_ag, v_max, 0.0, b_ativa['tipo_fundo'], 2, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)
+                    
+                    dias.append(datetime.strptime(dados['daily']['time'][i], "%Y-%m-%d").strftime("%d/%m"))
+                    scores.append(sc_d)
+                    ventos.append(v_max)
+                    temps.append(t_ag)
+
+                df_7 = pd.DataFrame({"Data": dias, "Score (%)": scores, "Temp Água Est (°C)": temps, "Vento Max (km/h)": ventos})
+                st.line_chart(df_7.set_index("Data")["Score (%)"], color="#38bdf8")
+                st.dataframe(df_7, use_container_width=True, hide_index=True)
+        else:
+            st.warning("⚠️ O servidor da API encontra-se temporariamente em bloqueio (Erro 429). Se persistir, aguarda 15 a 30 minutos.")
